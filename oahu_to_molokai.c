@@ -67,6 +67,7 @@ void* child(void* args) {
 			pthread_mutex_lock(&num_adults_on_oahu_lock);
 			if(num_adults_on_oahu == 0) {
 				// we're done
+				pthread_mutex_unlock(&num_adults_on_oahu_lock);
 				break;
 			}
 			pthread_mutex_unlock(&num_adults_on_oahu_lock);
@@ -81,6 +82,7 @@ void* child(void* args) {
 			pthread_mutex_lock(&children_in_boat_lock);
 			while(boat_location == 1 || children_in_boat > 1) {
 				pthread_mutex_unlock(&children_in_boat_lock);
+				printf("\tchild %d WAITING FOR children_to_molokai\n", id);
 				pthread_cond_wait(&children_to_molokai, &boat_location_lock);
 				pthread_mutex_lock(&children_in_boat_lock);
 			}
@@ -90,16 +92,17 @@ void* child(void* args) {
 			if(children_in_boat == 0) {
 				// we're the first one in
 				children_in_boat = 1;
+				// so we get to print first
+				pthread_mutex_lock(&child_print_lock);
 				printf("child %d getting into boat on oahu (pilot)\n", id);
 				fflush(stdout);
 				pthread_mutex_unlock(&children_in_boat_lock);
+
 				// wait for another child to get in the boat
 				pthread_mutex_lock(&children_in_boat_lock);
 				while(children_in_boat == 1) {
 					pthread_cond_wait(&child_in_boat, &children_in_boat_lock);
 				}
-				// so we get to print first
-				pthread_mutex_lock(&child_print_lock);
 				// and we get to row the boat
 				printf("child %d rowing boat from oahu to molokai\n", id);
 				fflush(stdout);
@@ -113,6 +116,31 @@ void* child(void* args) {
 				// and we get to reset children_in_boat
 				children_in_boat = 0;
 				pthread_mutex_unlock(&children_in_boat_lock);
+
+				// wake up one child, if we should
+				pthread_mutex_lock(&num_children_on_molokai_lock);
+				if(num_children_on_molokai > 0) {
+					printf("\tchild %d SIGNALING children_to_oahu\n", id);
+					pthread_cond_signal(&children_to_oahu);
+				}
+				pthread_mutex_unlock(&num_children_on_molokai_lock);
+
+				location = 1;
+
+				printf("\tchild %d acquiring boat_location_lock\n", id);
+				pthread_mutex_lock(&boat_location_lock);
+				boat_location = 0;
+				pthread_mutex_unlock(&boat_location_lock);
+
+				// increment num_children_on_molokai
+				pthread_mutex_lock(&num_children_on_molokai_lock);
+				printf("\tchild %d incrementing num_children_on_molokai\n", id);
+				num_children_on_molokai++;
+				pthread_mutex_unlock(&num_children_on_molokai_lock);
+
+				// terminate
+				break;
+
 			} else {
 				// we're the second one in
 				children_in_boat = 2;
@@ -126,35 +154,25 @@ void* child(void* args) {
 				printf("child %d arrived on molokai\n", id);
 				fflush(stdout);
 				pthread_mutex_unlock(&child_print_lock);
+
+				location = 1;
+
+				printf("\tchild %d acquiring boat_location_lock\n", id);
+				pthread_mutex_lock(&boat_location_lock);
+				boat_location = 0;
+				pthread_mutex_unlock(&boat_location_lock);
+
+				// increment num_children_on_molokai
+				pthread_mutex_lock(&num_children_on_molokai_lock);
+				printf("\tchild %d incrementing num_children_on_molokai\n", id);
+				num_children_on_molokai++;
+				pthread_mutex_unlock(&num_children_on_molokai_lock);
+
 			}
-
-			location = 1;
-			pthread_mutex_lock(&boat_location_lock);
-			boat_location = 0;
-			pthread_mutex_unlock(&boat_location_lock);
-
-
-			// increment num_children_on_molokai
-			pthread_mutex_lock(&num_children_on_molokai_lock);
-			num_children_on_molokai++;
-			pthread_mutex_unlock(&num_children_on_molokai_lock);
-
-
-			// wake up one child, if we should
-			pthread_mutex_lock(&num_children_on_molokai_lock);
-			if(num_children_on_oahu > 0) {
-				pthread_cond_signal(&children_to_oahu);
-			}
-			pthread_mutex_unlock(&num_children_on_molokai_lock);
 
 		} else { // location == 1
 			// we want to go back to oahu alone
-
-			// wait until the boat is on molokai
-			pthread_mutex_lock(&boat_location_lock);
-			while(boat_location == 0) {
-				pthread_cond_wait(&children_to_oahu, &boat_location_lock);
-			}
+			// the boat must be on molokai, since the other child exited
 
 			printf("child %d getting into boat on molokai\n", id);
 			fflush(stdout);
@@ -173,6 +191,7 @@ void* child(void* args) {
 			boat_location = 0;
 			pthread_mutex_unlock(&boat_location_lock);
 			// wake up two children and one adult
+			printf("\tchild %d SIGNALING adults_to_molokai\n");
 			pthread_cond_signal(&adults_to_molokai);
 			pthread_cond_signal(&children_to_molokai);
 			pthread_cond_signal(&children_to_molokai);
@@ -181,6 +200,7 @@ void* child(void* args) {
 
 	}
 	//signal main
+	printf("\tchild %d DONE\n", id);
 	sem_post(&thread_done_sem);
 
 	// exit
@@ -189,6 +209,7 @@ void* child(void* args) {
 }
 
 void* adult(void* args) {
+	
 	// INITIALIZATION //
 	// acquire num_adults lock
 	pthread_mutex_lock(&num_adults_on_oahu_lock);
@@ -215,6 +236,7 @@ void* adult(void* args) {
 	while(boat_location == 1 || num_children_on_molokai == 0 || children_in_boat > 0) {
 		pthread_mutex_unlock(&children_in_boat_lock);
 		pthread_mutex_unlock(&num_children_on_molokai_lock);
+		printf("\tadult %d WAITING FOR adults_to_molokai\n", id);
 		pthread_cond_wait(&adults_to_molokai, &boat_location_lock);
 		printf("\tadult %d WOKEN UP\n", id);
 		pthread_mutex_lock(&num_children_on_molokai_lock);

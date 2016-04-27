@@ -28,16 +28,17 @@ void* oxygen(void* args) {
 	num_oxygen++;
 	sem_post(num_lock);
 
-	printf("oxygen created!   %d %d %d\n", num_hydrogen, num_sulfur, num_oxygen);
-	fflush(stdout);
+	printf("oxygen produced\n");
 
 	// alerts the sulfur thread that we have created a new atom
 	sem_post(molecule_lock);
 
 	// waits until there are enough atoms for this one to leave
 	sem_wait(oxygen_sem);
-	printf("oxygen used up!   ** %d %d %d\n", num_hydrogen, num_sulfur, num_oxygen);
-	fflush(stdout);
+	sem_wait(num_lock);
+	num_oxygen--;
+	sem_post(num_lock);
+	printf("oxygen leaving\n");
 
 	sem_post(leave_sem);
 	return (void*)NULL;
@@ -48,16 +49,17 @@ void* hydrogen(void* args) {
 	num_hydrogen++;
 	sem_post(num_lock);
 
-	printf("hydrogen created! %d %d %d\n", num_hydrogen, num_sulfur, num_oxygen);
-	fflush(stdout);
+	printf("hydrogen produced\n");
 
 	// alerts the sulfur thread that we have created a new atom
 	sem_post(molecule_lock);
 
 	// waits until there are enough atoms for this one to leave
 	sem_wait(hydro_sem);
-	printf("hydrogen used up! ** %d %d %d\n", num_hydrogen, num_sulfur, num_oxygen);
-	fflush(stdout);
+	sem_wait(num_lock);
+	num_hydrogen--;
+	sem_post(num_lock);
+	printf("hydrogen leaving\n");
 
 	sem_post(leave_sem);
 	return (void*)NULL;
@@ -68,12 +70,9 @@ void* sulfur(void* args) {
 	num_sulfur++;
 	sem_post(num_lock);
 
-	printf("sulfur created!   %d %d %d\n", num_hydrogen, num_sulfur, num_oxygen);
-	fflush(stdout);
+	printf("sulfur produced\n");
 	sem_wait(sulfur_lock);
 
-	// checks if it is possible to form a new molecule
-	// sem_wait(molecule_lock);
 	sem_wait(num_lock);
 	// fails and continues if we have enough atoms, or waits if we don't
 	while (!(num_oxygen >= 4 && num_hydrogen >= 2 && num_sulfur >= 1)) {
@@ -83,40 +82,35 @@ void* sulfur(void* args) {
 	}
 	sem_post(num_lock);
 
-	printf("== molecule created! %d %d %d\n", num_hydrogen, num_sulfur, num_oxygen);
-	fflush(stdout);
+	printf("\nmolecule formed!\n");
 
-	// decrease number of atoms appropriately
+	// waits for hydrogen atoms to leave
+	sem_post(hydro_sem);
+	sem_wait(leave_sem);
+	sem_post(hydro_sem);
+	sem_wait(leave_sem);
+
 	sem_wait(num_lock);
-	num_oxygen -= 4;
-	num_hydrogen -= 2;
 	num_sulfur -= 1;
 	sem_post(num_lock);
+	printf("sulfur leaving\n");
 
-	// wait for hydrogen atoms to leave
-	sem_post(hydro_sem);
-	sem_post(hydro_sem);
-	sem_wait(leave_sem);
-	sem_wait(leave_sem);
-
-	printf("sulfur used up!   ** %d %d %d\n", num_hydrogen, num_sulfur, num_oxygen);
-	fflush(stdout);
-
-	// watis for oxygen atoms to leave
+	// waits for oxygen atoms to leave
 	for (int i = 0; i < 4; i++) {
 		sem_post(oxygen_sem);
-		sem_post(leave_sem);
+		sem_wait(leave_sem);
 	}
 
 	// allow other sulfur molecules to check for enough atoms
+	// delay(rand()%2000);
 	sem_post(sulfur_lock);
 	return (void*)NULL;
 }
 
 // opens the semaphores and links them to the global variables
 void openSems() {
-	// dynamically allocates memory for the semaphors and their respective names
-	// based on how many there are
+	// dynamically allocates memory for the semaphors and their respective
+	// names based on how many there are
 	sems = (sem_t**) malloc( sizeof(sem_t*) * num_sems );
 	sem_names = (char**) malloc( sizeof(char*) * num_sems );
 

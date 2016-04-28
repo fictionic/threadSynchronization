@@ -12,21 +12,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-// semaphores for initialization and termination
-sem_t* thread_init_sem;
-sem_t* thread_done_sem;
+/* ---------------- */
+/* SHARED VARIABLES */
+/* ---------------- */
 
-// queues for waiting for boat
-pthread_cond_t adults_to_molokai;
-pthread_cond_t children_to_molokai;
-pthread_cond_t children_to_oahu;
-pthread_cond_t child_print_queue;
-pthread_cond_t startup;
-
-// lock for checking shared variables
-pthread_mutex_t the_seeing_stone;
-
-// shared variables
+// ints
 int ready_to_go = 0;
 int num_children_total = 0;
 int num_adults_total = 0;
@@ -40,6 +30,24 @@ int num_adults_on_oahu_as_believed_on_molokai = 0;
 int children_in_boat = 0;
 int turn_to_print = 0;
 
+// semaphores for initialization and termination
+sem_t* thread_init_sem;
+sem_t* thread_done_sem;
+
+// condition variables //
+// queues for waiting for boat
+pthread_cond_t adults_to_molokai;
+pthread_cond_t children_to_molokai;
+pthread_cond_t children_to_oahu;
+// queue for starting threads
+pthread_cond_t startup;
+// queue for synchronizing when cooperating children print
+pthread_cond_t child_print_queue;
+// lock for checking shared variables
+pthread_mutex_t the_seeing_stone;
+
+
+// function declarations
 void* child(void* args);
 void* adult(void* args);
 void initSynch();

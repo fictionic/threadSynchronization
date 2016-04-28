@@ -52,7 +52,7 @@ void* child(void* args) {
 	int location = 0;
 	printf("child %d ready (on oahu)\n", id);
 	// wait for main
-	//sem_wait(thread_init_sem);
+	sem_post(thread_init_sem);
 	while(ready_to_go == 0) {
 		pthread_cond_wait(&startup, &the_seeing_stone);
 	}
@@ -220,6 +220,7 @@ void* adult(void* args) {
 	int remembered_num_children_on_oahu;
 	/* pthread_mutex_unlock(&the_seeing_stone); */
 	printf("adult %d ready (on oahu)\n", id);
+	sem_post(thread_init_sem);
 	// wait for main
 	while(ready_to_go == 0) {
 		pthread_cond_wait(&startup, &the_seeing_stone);
@@ -330,12 +331,12 @@ int main(int argc, char* argv[]) {
 		printf("created thread %d\n", i);
 	}
 	// wake up all the threads
+	for(i=0; i<numPeople; i++) {
+		sem_wait(thread_init_sem);
+	}
 	ready_to_go = 1;
 	pthread_cond_broadcast(&startup);
-	/* for(i=0; i<numPeople; i++) { */
-	/* 	sem_post(thread_init_sem); */
-	/* 	printf("woke up thread %d\n", i); */
-	/* } */
+	printf("woke up threads %d\n", i);
 	// wait for all threads to finish
 	for(i=0; i<numPeople; i++) {
 		sem_wait(thread_done_sem);

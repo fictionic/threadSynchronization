@@ -40,6 +40,55 @@ int num_adults_on_oahu_as_believed_on_molokai = 0;
 int children_in_boat = 0;
 int turn_to_print = 0;
 
+void* child(void* args);
+void* adult(void* args);
+void initSynch();
+
+// MAIN FUNCTION //
+int main(int argc, char* argv[]) {
+	if(argc != 3) {
+		printf("usage: %s <number_of_children> <number_of_adults>\n", argv[0]);
+		fflush(stdout);
+		return 1;
+	}
+	int numChildren = atoi(argv[1]);
+	int numAdults = atoi(argv[2]);
+	initSynch();
+	int numPeople = numChildren + numAdults;
+	pthread_t *threads = malloc(numPeople);
+	// initialize threads; they'll sleep on the init semaphore
+	int i=0;
+	for(; i<numChildren; i++) {
+		pthread_create(&threads[i], NULL, child, NULL);
+		printf("created thread %d\n", i);
+	}
+	for(; i<numPeople; i++) {
+		pthread_create(&threads[i], NULL, adult, NULL);
+		printf("created thread %d\n", i);
+	}
+	// wake up all the threads
+	for(i=0; i<numPeople; i++) {
+		sem_wait(thread_init_sem);
+	}
+	ready_to_go = 1;
+	pthread_mutex_lock(&the_seeing_stone);
+	pthread_cond_broadcast(&startup);
+	pthread_mutex_unlock(&the_seeing_stone);
+	printf("woke up threads\n");
+	// wait for all threads to finish
+	for(i=0; i<numPeople; i++) {
+		sem_wait(thread_done_sem);
+	}
+	printf("all threads done; main exiting\n");
+	//close semaphores
+	sem_close(thread_init_sem);
+	sem_unlink("init_sem");
+	sem_close(thread_done_sem);
+	sem_unlink("done_sem");
+	fflush(stdout);
+}
+
+
 void* child(void* args) {
 	// INITIALIZATION //
 	pthread_mutex_lock(&the_seeing_stone);
@@ -270,45 +319,3 @@ void initSynch() {
 	pthread_mutex_init(&the_seeing_stone, NULL);
 }
 
-int main(int argc, char* argv[]) {
-	if(argc != 3) {
-		printf("usage: %s <number_of_children> <number_of_adults>\n", argv[0]);
-		fflush(stdout);
-		return 1;
-	}
-	int numChildren = atoi(argv[1]);
-	int numAdults = atoi(argv[2]);
-	initSynch();
-	int numPeople = numChildren + numAdults;
-	pthread_t *threads = malloc(numPeople);
-	// initialize threads; they'll sleep on the init semaphore
-	int i=0;
-	for(; i<numChildren; i++) {
-		pthread_create(&threads[i], NULL, child, NULL);
-		printf("created thread %d\n", i);
-	}
-	for(; i<numPeople; i++) {
-		pthread_create(&threads[i], NULL, adult, NULL);
-		printf("created thread %d\n", i);
-	}
-	// wake up all the threads
-	for(i=0; i<numPeople; i++) {
-		sem_wait(thread_init_sem);
-	}
-	ready_to_go = 1;
-	pthread_mutex_lock(&the_seeing_stone);
-	pthread_cond_broadcast(&startup);
-	pthread_mutex_unlock(&the_seeing_stone);
-	printf("woke up threads\n");
-	// wait for all threads to finish
-	for(i=0; i<numPeople; i++) {
-		sem_wait(thread_done_sem);
-	}
-	printf("all threads done; main exiting\n");
-	//close semaphores
-	sem_close(thread_init_sem);
-	sem_unlink("init_sem");
-	sem_close(thread_done_sem);
-	sem_unlink("done_sem");
-	fflush(stdout);
-}

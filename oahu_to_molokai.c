@@ -71,7 +71,7 @@ void* child(void* args) {
 			} else {
 				printf("\tchild %d sees boat_location == %d\n", id, boat_location);
 			}
-			while(boat_location == 1 || children_in_boat > 1) {
+			while(boat_location == 1 || children_in_boat > 1 || (num_adults_on_oahu > 0 && num_children_on_molokai_as_believed_on_oahu > 0)) {
 				pthread_cond_wait(&children_to_molokai, &the_seeing_stone);
 			}
 			num_children_on_oahu--;

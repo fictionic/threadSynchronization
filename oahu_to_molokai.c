@@ -45,6 +45,7 @@ void* child(void* args) {
 	pthread_mutex_lock(&the_seeing_stone);
 	int id = num_children_total;
 	num_children_on_oahu++;
+	printf("\t\tchild %d incremented num_children_on_oahu; is %d\n", id, num_children_on_oahu);
 	num_children_total++;
 	int remembered_num_children_on_oahu;
 	int remembered_num_children_on_molokai;
@@ -80,6 +81,9 @@ void* child(void* args) {
 				// we're the first one in
 				children_in_boat = 1;
 				printf("child %d (rower) getting into boat on oahu (as rower)\n", id);
+				// remember what these were
+				num_children_on_oahu--;
+				printf("\t\tchild %d (rower) decremented num_children_on_oahu; is now %d\n", id, num_children_on_oahu);
 				// check if we should wait for another child to get in
 				printf("\tchild %d (rower) sees num_children_on_oahu == %d\n", id, num_children_on_oahu);
 				if(num_children_on_oahu > 0) {
@@ -90,9 +94,6 @@ void* child(void* args) {
 						int err = pthread_cond_wait(&child_print_turn, &the_seeing_stone);
 					}
 					printf("child %d (rower) rowing boat from oahu to molokai\n", id);
-					// remember what these were
-					num_children_on_oahu--;
-					printf("\t\tchild %d (rower) decremented num_children_on_oahu; is now %d\n", id, num_children_on_oahu);
 					remembered_num_children_on_oahu = num_children_on_oahu;
 					remembered_num_adults_on_oahu = num_adults_on_oahu;
 					printf("\t\tchild %d (rower) remembering num_children_on_oahu as %d\n", id, remembered_num_children_on_oahu);
@@ -109,10 +110,6 @@ void* child(void* args) {
 					turn_to_print = 1;
 					pthread_cond_signal(&child_print_turn);
 				} else {
-					// remember what these were
-					num_children_on_oahu--;
-					remembered_num_children_on_oahu = num_children_on_oahu;
-					remembered_num_adults_on_oahu = num_adults_on_oahu;
 					printf("child %d (rower) rowing boat from oahu to molokai\n", id);
 					// we've arrived
 					printf("child %d (rower) getting out of boat on molokai\n", id);
@@ -222,6 +219,9 @@ void* child(void* args) {
 		}
 	}
 
+	// let any waiting children know that we're done
+	printf("\tchild %d broadcasting children_to_oahu\n", id);
+	pthread_cond_broadcast(&children_to_oahu);
 	printf("\tchild %d DONE\n", id);
 	// signal main
 	sem_post(thread_done_sem);
@@ -272,6 +272,7 @@ void* adult(void* args) {
 	boat_location = 1;
 	pthread_mutex_unlock(&the_seeing_stone);
 	// signal two children
+	printf("\tadult %d signaling two children on molokaii\n", id);
 	pthread_cond_signal(&children_to_oahu);
 	pthread_cond_signal(&children_to_oahu);
 

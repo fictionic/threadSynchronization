@@ -61,9 +61,7 @@ void* child(void* args) {
 	pthread_mutex_unlock(&the_seeing_stone);
 	// run the algorithm
 	while(1) {
-		printf("\tchild %d is in the algorithm\n", id);
 		pthread_mutex_lock(&the_seeing_stone);
-		printf("\tchild %d got the lock\n", id);
 		if(location == 0) {
 			// we need to go to molokai
 			if(boat_location == 0) {
@@ -71,50 +69,57 @@ void* child(void* args) {
 			} else {
 				printf("\tchild %d sees boat_location == %d\n", id, boat_location);
 			}
+			printf("\tchild %d sees num_adults_on_oahu == %d and num_children_on_molokai_as_believed_on_oahu == %d\n", id, num_adults_on_oahu, num_children_on_molokai_as_believed_on_oahu);
 			while(boat_location == 1 || children_in_boat > 1 || (num_adults_on_oahu > 0 && num_children_on_molokai_as_believed_on_oahu > 0)) {
+				printf("\tchild %d getting in line to go to molokai\n", id);
 				pthread_cond_wait(&children_to_molokai, &the_seeing_stone);
 			}
-			num_children_on_oahu--;
-			printf("\tchild %d decremented num_children_on_oahu; is now %d\n", id, num_children_on_oahu);
+			printf("\tchild %d at front of line to go to molokai\n", id);
 			// see if there is a child in the boat already
 			if(children_in_boat == 0) {
 				// we're the first one in
 				children_in_boat = 1;
-				printf("child %d getting into boat on oahu (as rower)\n", id);
+				printf("child %d (rower) getting into boat on oahu (as rower)\n", id);
 				// check if we should wait for another child to get in
-				printf("\tchild %d sees num_children_on_oahu == %d\n", id, num_children_on_oahu);
+				printf("\tchild %d (rower) sees num_children_on_oahu == %d\n", id, num_children_on_oahu);
 				if(num_children_on_oahu > 0) {
 					// wait for the next child to get in
 					turn_to_print = 1;
 					while(turn_to_print == 1) {
-						printf("\tchild %d waiting for passenger to get into boat\n", id);
+						printf("\tchild %d (rower) waiting for passenger to get into boat\n", id);
 						int err = pthread_cond_wait(&child_print_turn, &the_seeing_stone);
-						printf("wait error: %s\n", strerror(err));
 					}
+					printf("child %d (rower) rowing boat from oahu to molokai\n", id);
 					// remember what these were
+					num_children_on_oahu--;
+					printf("\t\tchild %d (rower) decremented num_children_on_oahu; is now %d\n", id, num_children_on_oahu);
 					remembered_num_children_on_oahu = num_children_on_oahu;
 					remembered_num_adults_on_oahu = num_adults_on_oahu;
-					printf("child %d rowing boat from oahu to molokai\n", id);
-					// wait for passenger to say he's being rowed and to get out
+					printf("\t\tchild %d (rower) remembering num_children_on_oahu as %d\n", id, remembered_num_children_on_oahu);
+					// we've arrived
+					boat_location = 1;
+					// wait for passenger to get out
 					turn_to_print = 1;
 					pthread_cond_signal(&child_print_turn);
 					while(turn_to_print == 1) {
-						printf("\tchild %d waiting for passenger to get out of boat\n", id);
+						printf("\tchild %d (rower) waiting for passenger to get out of boat\n", id);
 						pthread_cond_wait(&child_print_turn, &the_seeing_stone);
 					}
-					printf("child %d getting out of boat on molokai\n", id);
+					printf("child %d (rower) getting out of boat on molokai\n", id);
 					turn_to_print = 1;
 					pthread_cond_signal(&child_print_turn);
 				} else {
-					// remember what these are
+					// remember what these were
+					num_children_on_oahu--;
 					remembered_num_children_on_oahu = num_children_on_oahu;
 					remembered_num_adults_on_oahu = num_adults_on_oahu;
-					printf("child %d rowing boat from oahu to molokai\n", id);
-					printf("child %d arrived on molokai\n", id);
-					printf("child %d getting out of boat on molokai\n", id);
+					printf("child %d (rower) rowing boat from oahu to molokai\n", id);
+					// we've arrived
+					printf("child %d (rower) getting out of boat on molokai\n", id);
 				}
-				boat_location = 1;
 				children_in_boat--;
+				num_children_on_molokai++;
+				printf("\t\tchild (rower) %d incremented num_children_on_molokai; is %d\n", id, num_children_on_molokai);
 				// tell everyone on the molokai what we remember about oahu
 				num_children_on_oahu_as_believed_on_molokai = remembered_num_children_on_oahu;
 				num_adults_on_oahu_as_believed_on_molokai = remembered_num_adults_on_oahu;
@@ -124,26 +129,29 @@ void* child(void* args) {
 				// now loop
 			} else if(children_in_boat == 1) {
 				// we're the second one here
-				// remember these things for later
-				printf("\tchild %d remembers num_children_on_oahu == %d, and num_adults_on_oahu == %d\n", id, remembered_num_children_on_oahu, remembered_num_adults_on_oahu);
-				remembered_num_children_on_oahu = num_children_on_oahu;
-				remembered_num_adults_on_oahu = num_adults_on_oahu;
 				// wait until it's our turn to print
-				printf("child %d getting into boat on oahu (as passenger)\n", id);
+				printf("child %d (passenger) getting into boat on oahu\n", id);
 				children_in_boat = 2;
+				// decrement num_children_on_oahu
+				num_children_on_oahu--;
+				printf("\t\tchild %d (passenger) decremented num_children_on_oahu; is %d\n", id, num_children_on_oahu);
 				// wait for rower child to start rowing
 				turn_to_print = 0;
 				pthread_cond_signal(&child_print_turn);
 				while(turn_to_print == 0) {
-					printf("\tchild %d waiting for rower\n", id);
+					printf("\tchild %d (passenger) waiting for rower\n", id);
 					pthread_cond_wait(&child_print_turn, &the_seeing_stone);
 				}
-				printf("child %d being rowed from oahu to molokai\n", id);
+				// remember these things for later
+				printf("\tchild %d (passenger) remembers num_children_on_oahu == %d, and num_adults_on_oahu == %d\n", id, num_children_on_oahu, num_adults_on_oahu);
+				remembered_num_children_on_oahu = num_children_on_oahu;
+				remembered_num_adults_on_oahu = num_adults_on_oahu;
 				// get out of boat
-				printf("child %d getting out of boat on molokai\n", id);
+				printf("child %d (passenger) getting out of boat on molokai\n", id);
 				children_in_boat--;
+				num_children_on_molokai++;
+				printf("\t\tchild %d (passenger) incremented num_children_on_molokai; is %d\n", id, num_children_on_molokai);
 				// tell everyone on the molokai what we remember about oahu
-			printf("\tchild %d remembers num_adults_on_oahu == %d and num_children_on_oahu == %d\n", id, num_adults_on_oahu_as_believed_on_molokai, num_children_on_oahu_as_believed_on_molokai);
 				num_children_on_oahu_as_believed_on_molokai = remembered_num_children_on_oahu;
 				num_adults_on_oahu_as_believed_on_molokai = remembered_num_adults_on_oahu;
 
@@ -151,7 +159,7 @@ void* child(void* args) {
 				turn_to_print = 0;
 				pthread_cond_signal(&child_print_turn);
 				while(turn_to_print == 0) {
-					printf("\tchild %d waiting for rower to get out of the boat\n", id);
+					printf("\tchild %d (passenger) waiting for rower to get out of the boat\n", id);
 					pthread_cond_wait(&child_print_turn, &the_seeing_stone);
 				}
 				// see if we should signal a child
@@ -173,26 +181,32 @@ void* child(void* args) {
 				pthread_cond_wait(&children_to_oahu, &the_seeing_stone);
 			}
 			// see if we need to go back to oahu
-			printf("\tchild %d remembers num_adults_on_oahu == %d and num_children_on_oahu == %d\n", id, num_adults_on_oahu_as_believed_on_molokai, num_children_on_oahu_as_believed_on_molokai);
+			printf("\tchild %d believes num_adults_on_oahu == %d and num_children_on_oahu == %d\n", id, num_adults_on_oahu_as_believed_on_molokai, num_children_on_oahu_as_believed_on_molokai);
 			if(num_adults_on_oahu_as_believed_on_molokai + num_children_on_oahu_as_believed_on_molokai == 0) {
 				// we don't, so break
 				pthread_mutex_unlock(&the_seeing_stone);
 				break;
 			}
+			// get into boat
+			printf("child %d getting into boat on molokai\n", id);
 			// decrement number of children on molokai
 			num_children_on_molokai--;
-			// we're going back to oahu, so remember this for when we get there
+			printf("\tchild %d decremented num_children_on_molokai; is %d\n", id, num_children_on_molokai);
+			// we're going back to oahu, so remember this for when we get there (don't care about num_adults_on_molokai)
 			remembered_num_children_on_molokai = num_children_on_molokai;
-			// (don't care about num_adults_on_molokai)
-			printf("child %d getting into boat on molokai\n", id);
+			printf("\tchild %d remembering num_children_on_molokai as %d\n", id, remembered_num_children_on_molokai);
 			printf("child %d rowing boat from molokai to oahu \n", id);
 			printf("child %d arrived on oahu\n", id);
 			printf("child %d getting out of boat on oahu\n", id);
 			num_children_on_oahu++;
+			printf("\t\tchild %d incremented num_children_on_oahu; is now %d\n", id, num_children_on_oahu);
 			boat_location = 0;
 			location = 0;
+			// tell everyone what we remember
+			num_children_on_molokai_as_believed_on_oahu = remembered_num_children_on_molokai;
+			printf("\tchild %d informing people of oahu that num_children_on_molokai is %d\n", id, remembered_num_children_on_molokai);
 			// determine whom we should signal
-			if(num_adults_on_oahu > 0) {
+			if(num_adults_on_oahu > 0 && num_children_on_molokai_as_believed_on_oahu > 0) {
 				printf("child %d signaling adults_to_molokai\n", id);
 				pthread_mutex_unlock(&the_seeing_stone);
 				pthread_cond_signal(&adults_to_molokai);
@@ -220,6 +234,7 @@ void* adult(void* args) {
 	pthread_mutex_lock(&the_seeing_stone);
 	int id = num_adults_total;
 	num_adults_on_oahu++;
+	printf("\tadult %d incremented num_adults_on_oahu; is now %d\n", id, num_adults_on_oahu);
 	num_adults_total++;
 	int remembered_num_adults_on_oahu;
 	int remembered_num_children_on_oahu;
@@ -256,10 +271,9 @@ void* adult(void* args) {
 	num_children_on_oahu_as_believed_on_molokai = remembered_num_children_on_oahu;
 	boat_location = 1;
 	pthread_mutex_unlock(&the_seeing_stone);
-	// signal an adult and two children
-	pthread_cond_signal(&adults_to_molokai);
-	pthread_cond_signal(&children_to_molokai);
-	pthread_cond_signal(&children_to_molokai);
+	// signal two children
+	pthread_cond_signal(&children_to_oahu);
+	pthread_cond_signal(&children_to_oahu);
 
 	printf("\tadult %d DONE\n", id);
 	// signal main
@@ -337,7 +351,7 @@ int main(int argc, char* argv[]) {
 	}
 	ready_to_go = 1;
 	pthread_cond_broadcast(&startup);
-	printf("woke up threads %d\n", i);
+	printf("woke up threads\n");
 	// wait for all threads to finish
 	for(i=0; i<numPeople; i++) {
 		sem_wait(thread_done_sem);

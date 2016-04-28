@@ -21,11 +21,13 @@ pthread_cond_t adults_to_molokai;
 pthread_cond_t children_to_molokai;
 pthread_cond_t children_to_oahu;
 pthread_cond_t child_print_turn;
+pthread_cond_t startup;
 
 // lock for checking shared variables
 pthread_mutex_t the_seeing_stone;
 
 // shared variables
+int ready_to_go = 0;
 int num_children_total = 0;
 int num_adults_total = 0;
 int boat_location = 0;
@@ -35,7 +37,6 @@ int num_children_on_molokai = 0;
 int num_children_on_molokai_as_believed_on_oahu = 0;
 int num_adults_on_oahu = 0;
 int num_adults_on_oahu_as_believed_on_molokai = 0;
-
 int children_in_boat = 0;
 int turn_to_print = 0;
 
@@ -45,31 +46,32 @@ void* child(void* args) {
 	int id = num_children_total;
 	num_children_on_oahu++;
 	num_children_total++;
-	pthread_mutex_unlock(&the_seeing_stone);
 	int remembered_num_children_on_oahu;
 	int remembered_num_children_on_molokai;
 	int remembered_num_adults_on_oahu;
 	int location = 0;
 	printf("child %d ready (on oahu)\n", id);
 	// wait for main
-	sem_wait(thread_init_sem);
+	//sem_wait(thread_init_sem);
+	while(ready_to_go == 0) {
+		pthread_cond_wait(&startup, &the_seeing_stone);
+	}
 	printf("\tchild %d woken up by main\n", id);
 
 	// run the algorithm
 	while(1) {
 		if(location == 0) {
 			// we need to go to molokai
-			pthread_mutex_lock(&the_seeing_stone);
-			printf("\tchild %d sees boat_location == %d ", id, boat_location);
 			if(boat_location == 0) {
-				printf("and children_in_boat == %d\n", children_in_boat);
+				printf("\tchild %d sees boat_location == %d and children_in_boat == %d\n", id, boat_location, children_in_boat);
 			} else {
-				printf("\n");
+				printf("\tchild %d sees boat_location == %d\n", id, boat_location);
 			}
 			while(boat_location == 1 || children_in_boat > 1) {
 				pthread_cond_wait(&children_to_molokai, &the_seeing_stone);
 			}
 			num_children_on_oahu--;
+			printf("\tchild %d decremented num_children_on_oahu; is now %d\n", id, num_children_on_oahu);
 			// see if there is a child in the boat already
 			if(children_in_boat == 0) {
 				// we're the first one in
@@ -216,10 +218,13 @@ void* adult(void* args) {
 	num_adults_total++;
 	int remembered_num_adults_on_oahu;
 	int remembered_num_children_on_oahu;
-	pthread_mutex_unlock(&the_seeing_stone);
+	/* pthread_mutex_unlock(&the_seeing_stone); */
 	printf("adult %d ready (on oahu)\n", id);
 	// wait for main
-	sem_wait(thread_init_sem);
+	while(ready_to_go == 0) {
+		pthread_cond_wait(&startup, &the_seeing_stone);
+	}
+	/* sem_wait(thread_init_sem); */
 	printf("\tadult %d woken up by main\n", id);
 
 	// run the algorithm
@@ -266,7 +271,7 @@ void initSynch() {
 	while(thread_init_sem == SEM_FAILED) {
 		// unlinks and reopens semaphore if it was already opened
 		if(errno == EEXIST) {
-			printf("semaphore %s already exists, unlinking and reopening init_sem\n");
+			printf("unlinking and reopening init_sem, as it already exists\n");
 			sem_unlink("init_sem");
 			// initializes the lock semaphores with value 1, and the rest with value 0
 			thread_init_sem = sem_open("init_sem", O_CREAT | O_EXCL, 0644, 0);
@@ -281,7 +286,7 @@ void initSynch() {
 	while(thread_done_sem == SEM_FAILED) {
 		// unlinks and reopens semaphore if it was already opened
 		if(errno == EEXIST) {
-			printf("semaphore %s already exists, unlinking and reopening done_sem\n");
+			printf("unlinking and reopening done_sem, as it already exists\n");
 			sem_unlink("done_sem");
 			// initializes the lock semaphores with value 1, and the rest with value 0
 			thread_done_sem = sem_open("done_sem", O_CREAT | O_EXCL, 0644, 0);
@@ -291,6 +296,8 @@ void initSynch() {
 			exit(1);
 		}
 	}
+
+	pthread_cond_init(&startup, NULL);
 
 	pthread_cond_init(&adults_to_molokai, NULL);
 	pthread_cond_init(&children_to_molokai, NULL);
@@ -322,21 +329,24 @@ int main(int argc, char* argv[]) {
 		pthread_create(&threads[i], NULL, adult, NULL);
 		printf("created thread %d\n", i);
 	}
-	// acquire the lock, so no threads can continue
-	printf("\tmain acquired lock\n");
-	pthread_mutex_lock(&the_seeing_stone);
 	// wake up all the threads
-	for(i=0; i<numPeople; i++) {
-		sem_post(thread_init_sem);
-		printf("woke up thread %d\n", i);
-	}
-	pthread_mutex_unlock(&the_seeing_stone);
-	printf("\tmain released lock\n");
+	ready_to_go = 1;
+	pthread_cond_broadcast(&startup);
+	/* for(i=0; i<numPeople; i++) { */
+	/* 	sem_post(thread_init_sem); */
+	/* 	printf("woke up thread %d\n", i); */
+	/* } */
 	// wait for all threads to finish
 	for(i=0; i<numPeople; i++) {
 		sem_wait(thread_done_sem);
 	}
 	printf("all threads done; main exiting\n");
+	
+	//close semaphores
+	sem_close(thread_init_sem);
+	sem_unlink("init_sem");
+	sem_close(thread_done_sem);
+	sem_unlink("done_sem");
 	fflush(stdout);
 
 }

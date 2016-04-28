@@ -61,7 +61,9 @@ void* child(void* args) {
 	pthread_mutex_unlock(&the_seeing_stone);
 	// run the algorithm
 	while(1) {
+		printf("\tchild %d is in the algorithm\n", id);
 		pthread_mutex_lock(&the_seeing_stone);
+		printf("\tchild %d got the lock\n", id);
 		if(location == 0) {
 			// we need to go to molokai
 			if(boat_location == 0) {
@@ -86,7 +88,8 @@ void* child(void* args) {
 					turn_to_print = 1;
 					while(turn_to_print == 1) {
 						printf("\tchild %d waiting for passenger to get into boat\n", id);
-						pthread_cond_wait(&child_print_turn, &the_seeing_stone);
+						int err = pthread_cond_wait(&child_print_turn, &the_seeing_stone);
+						printf("wait error: %s\n", strerror(err));
 					}
 					// remember what these were
 					remembered_num_children_on_oahu = num_children_on_oahu;
@@ -300,6 +303,7 @@ void initSynch() {
 	pthread_cond_init(&adults_to_molokai, NULL);
 	pthread_cond_init(&children_to_molokai, NULL);
 	pthread_cond_init(&children_to_oahu, NULL);
+	pthread_cond_init(&child_print_turn, NULL);
 	pthread_mutex_init(&the_seeing_stone, NULL);
 }
 
@@ -339,7 +343,7 @@ int main(int argc, char* argv[]) {
 		sem_wait(thread_done_sem);
 	}
 	printf("all threads done; main exiting\n");
-	
+
 	//close semaphores
 	sem_close(thread_init_sem);
 	sem_unlink("init_sem");

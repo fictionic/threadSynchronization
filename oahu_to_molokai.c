@@ -5,6 +5,7 @@
  */
 
 #include <pthread.h>
+#include <errno.h>
 #include <semaphore.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -262,7 +263,35 @@ void* adult(void* args) {
 
 void initSynch() {
 	thread_init_sem = sem_open("init_sem", O_CREAT | O_EXCL, 0644, 0);
+	while(thread_init_sem == SEM_FAILED) {
+		// unlinks and reopens semaphore if it was already opened
+		if(errno == EEXIST) {
+			printf("semaphore %s already exists, unlinking and reopening init_sem\n");
+			sem_unlink("init_sem");
+			// initializes the lock semaphores with value 1, and the rest with value 0
+			thread_init_sem = sem_open("init_sem", O_CREAT | O_EXCL, 0644, 0);
+		// exits if the semaphore could not be opened
+		} else {
+			printf("semaphore could not be opened, error # %d\n", errno);
+			exit(1);
+		}
+	}
+
 	thread_done_sem = sem_open("done_sem", O_CREAT | O_EXCL, 0644, 0);
+	while(thread_done_sem == SEM_FAILED) {
+		// unlinks and reopens semaphore if it was already opened
+		if(errno == EEXIST) {
+			printf("semaphore %s already exists, unlinking and reopening done_sem\n");
+			sem_unlink("done_sem");
+			// initializes the lock semaphores with value 1, and the rest with value 0
+			thread_done_sem = sem_open("done_sem", O_CREAT | O_EXCL, 0644, 0);
+		// exits if the semaphore could not be opened
+		} else {
+			printf("semaphore could not be opened, error # %d\n", errno);
+			exit(1);
+		}
+	}
+
 	pthread_cond_init(&adults_to_molokai, NULL);
 	pthread_cond_init(&children_to_molokai, NULL);
 	pthread_cond_init(&children_to_oahu, NULL);

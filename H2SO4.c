@@ -126,9 +126,9 @@ void openSems() {
 	for (int i = 0; i < num_sems; i++) {
 		// initializes the lock semaphores with value 1, and the rest with value 0
 		if (i < 3)
-			sems[i] = sem_open(sem_names[i], O_CREAT|O_EXCL, 0466, 1);
+			sems[i] = sem_open(sem_names[i], O_CREAT|O_EXCL, 0644, 1);
 		else
-			sems[i] = sem_open(sem_names[i], O_CREAT|O_EXCL, 0466, 0);
+			sems[i] = sem_open(sem_names[i], O_CREAT|O_EXCL, 0644, 0);
 
 		// ensures semaphores opened correctly
 		while (sems[i] == SEM_FAILED) {
@@ -139,9 +139,9 @@ void openSems() {
 
 				// initializes the lock semaphores with value 1, and the rest with value 0
 				if (i < 3)
-					sems[i] = sem_open(sem_names[i], O_CREAT|O_EXCL, 0466, 1);
+					sems[i] = sem_open(sem_names[i], O_CREAT|O_EXCL, 0644, 1);
 				else
-					sems[i] = sem_open(sem_names[i], O_CREAT|O_EXCL, 0466, 0);
+					sems[i] = sem_open(sem_names[i], O_CREAT|O_EXCL, 0644, 0);
 
 			// exits if the semaphore could not be opened
 			} else {

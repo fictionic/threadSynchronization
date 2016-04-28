@@ -6,13 +6,14 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 // semaphores for initialization and termination
-sem_t thread_init_sem;
-sem_t thread_done_sem;
+sem_t* thread_init_sem;
+sem_t* thread_done_sem;
 
 // queues for waiting for boat
 pthread_cond_t adults_to_molokai;
@@ -50,7 +51,7 @@ void* child(void* args) {
 	int location = 0;
 	printf("child %d ready (on oahu)\n", id);
 	// wait for main
-	sem_wait(&thread_init_sem);
+	sem_wait(thread_init_sem);
 	printf("\tchild %d woken up by main\n", id);
 
 	// run the algorithm
@@ -201,7 +202,7 @@ void* child(void* args) {
 
 	printf("\tchild %d DONE\n", id);
 	// signal main
-	sem_post(&thread_done_sem);
+	sem_post(thread_done_sem);
 	return (void*)NULL;
 }
 
@@ -217,7 +218,7 @@ void* adult(void* args) {
 	pthread_mutex_unlock(&the_seeing_stone);
 	printf("adult %d ready (on oahu)\n", id);
 	// wait for main
-	sem_wait(&thread_init_sem);
+	sem_wait(thread_init_sem);
 	printf("\tadult %d woken up by main\n", id);
 
 	// run the algorithm
@@ -255,13 +256,13 @@ void* adult(void* args) {
 
 	printf("\tadult %d DONE\n", id);
 	// signal main
-	sem_post(&thread_done_sem);
+	sem_post(thread_done_sem);
 	return (void*)NULL;
 }
 
 void initSynch() {
-	sem_init(&thread_init_sem, 0, 0);
-	sem_init(&thread_done_sem, 0, 0);
+	thread_init_sem = sem_open("init_sem", O_CREAT | O_EXCL, 0644, 0);
+	thread_done_sem = sem_open("done_sem", O_CREAT | O_EXCL, 0644, 0);
 	pthread_cond_init(&adults_to_molokai, NULL);
 	pthread_cond_init(&children_to_molokai, NULL);
 	pthread_cond_init(&children_to_oahu, NULL);
@@ -297,14 +298,14 @@ int main(int argc, char* argv[]) {
 	pthread_mutex_lock(&the_seeing_stone);
 	// wake up all the threads
 	for(i=0; i<numPeople; i++) {
-		sem_post(&thread_init_sem);
+		sem_post(thread_init_sem);
 		printf("woke up thread %d\n", i);
 	}
 	pthread_mutex_unlock(&the_seeing_stone);
 	printf("\tmain released lock\n");
 	// wait for all threads to finish
 	for(i=0; i<numPeople; i++) {
-		sem_wait(&thread_done_sem);
+		sem_wait(thread_done_sem);
 	}
 	printf("all threads done; main exiting\n");
 	fflush(stdout);
